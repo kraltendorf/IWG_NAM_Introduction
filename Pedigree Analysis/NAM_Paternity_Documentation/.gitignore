@@ -1,0 +1,11 @@
+.DS_Store
+output/
+*files
+*cache
+.Rhistory
+.RData
+archive/
+bulk/
+beocat/
+*.out
+*.html

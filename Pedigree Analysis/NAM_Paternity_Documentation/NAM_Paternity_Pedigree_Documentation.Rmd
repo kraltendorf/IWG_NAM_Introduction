@@ -1,0 +1,497 @@
+---
+title: "NAM Pedigree"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+# Objective
+
+```{r setup, eval=TRUE}
+#setwd() #set working directory, if working directory is correct all other code should run
+options(digits = 10) #set options to include lots of digits
+source('./scripts/Function_R.r') #load functions
+require(ggplot2)
+require(plyr)
+require(reshape2)
+require(devtools) #load packages
+require(dendextend)
+require(lattice)
+require(rrBLUP)
+```
+
+
+
+Document NAM paternity and pedigree relationships using UMN C2 data and TLI breeding records. Original data files queried from IWG database using [IWG_Database_Queries.R](./scripts/IWG_Database_Queries.R)
+
+# Verify and Filter Key Files
+
+This checks that the number of unique samples, length of the key file, and formatting is compatible with the TASSEL pipeline.  Often can find errors such as spaces in sample names, missing observations etc. simply by doing verifcation math. For files with Thinopyrum elongatum, files were removed.
+
+```{r verify_key_file, eval=TRUE}
+require(plyr)
+key1 <- read.delim(file = './data/Original_Data/UMN_Key1.txt', header = TRUE, stringsAsFactors = FALSE) #load key file
+
+#Verify key matches number of expected rows and samples
+96*2 == nrow(key1) #96 wells at AB plexing * 2 = 184
+
+#number of unique samples
+(11 + 3 + 10 + 11 + 4) == length(unique(key1$FullSampleName)) # 11 parents, 3 blank, 10 pseudorogneria, 11 thin elong, 4 others
+
+#dump 21 thin elongatum etc.
+key1 <- key1[!grepl('^thinopyrum|^pseudoroegneria', key1$FullSampleName), ]
+
+#number of unique samples
+11 + 3 + 4 == length(unique(key1$FullSampleName)) 
+
+#append well lables
+key1$FullSampleName <- paste(key1$FullSampleName, key1$BarcodeWell, sep = '_')
+
+#check for periods, spaces, hypens is full sample name
+any(grepl("\\.|\\-|\\ ", key1$FullSampleName )==TRUE) #should be FALSE if TRUE fix
+
+#number of unique samples
+length(unique(key1$FullSampleName))*2 == nrow(key1)
+
+
+#write final key
+#write.table(key1, file = './data/Intermediate_File/UMN_Key1_Filtered.txt', quote = FALSE, row.names = FALSE, sep = '\t')
+
+#clean up
+rm(key1)
+
+
+#Look at Key 2
+key2 <- read.delim(file = './data/Original_Data/UMN_Key2.txt', header = TRUE, stringsAsFactors = FALSE) #load key file
+
+#Verify key matches number of expected rows and samples
+96*2*2 == nrow(key2) #96*2 wells at AB plexing * 2 = 384
+
+#number of unique samples
+(11 + 3 + 10 + 11 + 4 + 96) == length(unique(key2$FullSampleName)) # 11 parents, 3 blank, 10 pseudorogneria, 11 thin elong, 4 others
+
+#dump 21 thin elongatum etc.
+key2 <- key2[!grepl('^thinopyrum|^pseudoroegneria', key2$FullSampleName), ]
+
+#number of unique samples
+11 + 3 + 4 + 96 == length(unique(key2$FullSampleName)) 
+
+#check for periods, spaces, hypens is full sample name
+any(grepl("\\.|\\-|\\ ", key2$FullSampleName )==TRUE) #should be FALSE if TRUE fix
+
+#number of unique samples
+96*2 +(10*12 + 16 + 7*2) == nrow(key2) # one plate of 96 * 2, parent plate of 10 samples 6 times, 1 sample 8 times, and 7 samples twice
+
+
+#write final key
+#write.table(key2, file = './data/Intermediate_File/UMN_Key2_Filtered.txt', quote = FALSE, row.names = FALSE, sep = '\t')
+
+nrow(unique(key2[, 1:2])) #get the number of unique GBS fastq files (AC and BD lanes are separate libraries but same flowcell).  Check that GBS file recognizes this many fastq files.
+
+#clean up
+rm(key2)
+
+```
+
+
+# Set up GBS5v2 Run
+
+GBS was ran on Unix cluster 
+
+For the key files a shell scripts were set up for [UMN_Key2.sh](./scripts/UMN_Key2.sh) which called the key file, sequence directory, and also filtered the data.
+
+This shell scripts called 3 other programs that have files.  They are listed as [GBSv2_table_join_to_get_tagid.sql](Scripts/gbs/GBSv2_table_join_to_get_tagid.sql), [Genotype_by_Depth4.pl](Scripts/gbs/Genotype_by_Depth4.pl), and [snp_to_tagid.py](Scripts/gbs/snp_to_tagid.py).  Additionally, the shell script calls parameter filtering to ensure MAF > 0.01, only biallelic SNPs, and max percent missing < 70%.  After running the GBS pipeline the following code can examine the results.  Steps to run GBS key file:
+
+1.  Push directory to Unix.
+2.  Change to Unix directory scripts direcotry.
+3.  Run using the command: sbatch  UMN_Key2.sh
+
+# Evaluate Genotyping Depth UMN Key 2
+```{r depth_calling_UMN2,  eval=TRUE}
+require(ggplot2)
+require(plyr)
+require(reshape2)
+
+depth <- read.delim(file = './beocat/gbs/UMN2_Depth_Call_Filtered.gdepth', header = TRUE, check.names = FALSE) #load data on allele depth
+
+key <- read.delim(file = './data/Intermediate_File/UMN_Key2_Filtered.txt', header = TRUE, stringsAsFactors = FALSE) #load key file
+
+table(key$plexing) #look at plexing level should treat plexing different.  All plexing is mix of 384 and 192.
+
+key$plex <- 192 #assign plexing
+
+n192 <- length(unique(key[key$plex == 192,]$FullSampleName)) #get the number of unique indiviudals for 192 plexing
+snps <- nrow(depth) #get the number of SNPs
+print(paste('Number of individuals at 192 plex: ', n192, sep = '')) #print number of 192 individuals
+print(paste('Number of markers: ', snps, sep = '')) #print number of snps
+
+#Look at 192
+p192 <- adepth(key[key$plex == 192,], y = depth)
+
+p192site <- as.data.frame(p192[1]) #extract tags per site
+p192ind <- as.data.frame(p192[2]) #extract tags per individual
+
+#Allele Depth Per Call
+ggplot(p192site, aes(x = value, color = variable) ) +
+         xlim(0, 50) +
+         stat_density(geom = 'line', adjust = 10) +
+  geom_vline(data = ddply(p192site, .(variable), .fun=function(x){mean(x$value, na.rm = TRUE)}), aes(xintercept = V1, colour=variable))+
+  labs(title = 'P192 Plexing', subtitle = paste('Vertical bars represent average for each percentile from ', snps, ' and ', n192, ' Individuals', sep = '')) +
+  labs(x = 'Number of calls per site', y = 'Call density')
+
+ggplot(p192ind, aes(x = value, color = variable) ) +
+         xlim(0, 30) +
+         stat_density(geom = 'line', adjust = 10) +
+  geom_vline(data = ddply(p192ind, .(variable), .fun = function(x){mean(x$value, na.rm = TRUE)}), aes(xintercept = V1, colour = variable)) +
+  labs(title = 'P192 Plexing', subtitle = paste('Vertical bars represent average for each percentile from ', snps, ' and ', n192, ' Individuals', sep = '')) +
+  labs(x = 'Number of calls per individual', y = 'Call density')
+
+#clean up
+rm(depth, key,p192, p192site, p192ind,  n192, snps)
+```
+
+# Population Parameters and Filtering Key 
+
+```{r population_parameters_UMN2,  eval=TRUE}
+require(plyr)
+
+key <- read.delim(file = './data/Intermediate_File/UMN_Key2_Filtered.txt', header = TRUE, stringsAsFactors = FALSE) #load key file
+
+key1 <- read.delim(file = './data/Intermediate_File/UMN_Key1_Filtered.txt', header = TRUE, stringsAsFactors = FALSE) #load key file
+founder <- unique(substr(key1$FullSampleName, 1, nchar(key1$FullSampleName)-4)) #get founder_id
+founder <- founder[grepl('^WGN', founder)] #get 11 founder parents
+
+hap <- read.delim(file = './beocat/gbs/UMN2.hmp.txt', header = TRUE, stringsAsFactors = FALSE, check.names = FALSE) #laod genotype file
+
+#examine blank wells
+#Look at observation per individual and blank wells
+blankSNP <- colSums(hap[,grepl('BLANK', colnames(hap), ignore.case = TRUE)] != 'N') #count blanks SNPs
+max(blankSNP) #max count in blank well is 773
+SNPnum <- colSums(hap[,12:ncol(hap)] != 'N')
+
+#makes histogram
+hist(SNPnum, xlim = c(0, 40000), breaks = seq(0, 40000, by = 1250), main = 'NAM Parents', sub = 'red is blank wells', xlab = 'Number of SNPs', ylab = 'Number of Individuals')
+hist(blankSNP, xlim = c(0, 40000), breaks = seq(0, 40000, by = 1250), col = 'red', add = TRUE)
+
+#Remove blank wells
+hap <- hap[,!(colnames(hap) %in% names(blankSNP))] #removes 50 columns
+hap <- hap[, !grepl('^TLI_', colnames(hap))] #remove 4 columns of TLI
+#Make population parameters
+hap <- tassel5_to_params(hap, 11, 59)
+
+#population histograms
+hist(hap$MAF, main = 'NAM Founder MAF', xlab = 'MAF', sub = 'Filtering from VCF 0.01 MAF, < 70% missing')
+hist(hap$present, main = 'NAM Founder Present', xlab = 'Present', sub = 'Filtering from VCF 0.01 MAF, < 70% missing')
+hist(hap$percentHET, main = 'NAM Founder HET', xlab = '% HET', sub = 'Filtering from VCF 0.01 MAF, < 70% missing')
+
+hap <- hap[hap$MAF > 0.05, ] #get 0.05 MAF
+
+#count percent in each row
+#Dendrogram will not work if bad individuals are not cleaned
+ind <- colSums(hap[,18:ncol(hap)] != 'N')/nrow(hap)
+print(ind[ind < 0.05])
+
+hist(ind, main = 'Percent of SNPs present per individual')
+
+ind_not_missing <- colSums(hap[, 18:ncol(hap)] != 'N' ) #get not missing values
+ind_missing <- colSums(hap[, 18:ncol(hap)] == 'N' ) #get number missing just for graphing
+
+ind_a <- colSums(hap[, 18:ncol(hap)] == 'A') #count number of homozygous
+ind_g <- colSums(hap[, 18:ncol(hap)] == 'G') #count number of homozygous
+ind_c <- colSums(hap[, 18:ncol(hap)] == 'C') #count number of homozygous
+ind_t <- colSums(hap[, 18:ncol(hap)] == 'T') #count number of homozygous
+
+homozygous <- ind_a + ind_g + ind_c + ind_t #add to get total number of homozygous
+percent_homozygous_individual <- homozygous / ind_not_missing #percent het individuasl
+hist(percent_homozygous_individual, main = 'Percent Homozygous per Individual', ylab = 'Number of Inidviduals', xlab = 'Percent homozgous loci') 
+
+colnames(hap) <- ifelse(colnames(hap) %in% founder, paste(colnames(hap), 'parent', sep = '_'), colnames(hap)) #add parent to column names
+
+#write
+#write.table(hap, file = './data/Intermediate_File/NAM_Founder_Parents.txt', row.names = FALSE, quote = FALSE, sep = '\t')
+
+#clean up
+rm(key, ind, SNPnum, blankSNP, hap, ind_not_missing, ind_missing, ind_a, ind_g, ind_c, ind_t, homozygous, percent_homozygous_individual, key1, founder)
+```
+
+# Make dendrogram UMN2
+
+```{r dendrogram_UMN_key2, eval=TRUE}
+require(dendextend)
+hap <- read.delim(file = './data/Intermediate_File/NAM_Founder_Parents.txt', header = TRUE, stringsAsFactors = FALSE, check.names = FALSE ) #load filtered hap file
+
+#run once and save results
+geno <- hap_to_G(hap, 17) #make a -1, 0, 1 marker matrix
+
+nam <- dendrogram(geno[,c(1, 18:ncol(geno))]) #run function to build dendrogram 
+
+#pdf(file = './data/Figures/NAM_Founder_Dendrogram_Parents.pdf', height = 10, width = 20)
+plot(nam, cex = 0.5, main = 'NAM Founder and Parents') #plot dendrogram
+#dev.off()
+
+#clean up
+rm(hap, geno, nam) #clean up
+```
+
+# Filter for Cervus
+
+```{r cervus_prepare_data, eval=TRUE}
+require(plyr)
+
+hap <- read.delim(file = './data/Intermediate_File/NAM_Founder_Parents.txt', stringsAsFactors = FALSE, header= TRUE)
+
+parents <- colnames(hap)[18:ncol(hap)] #get all individuals
+parents <- as.data.frame(parents) #make dataframe
+parents$generation <- ifelse(grepl('parent', parents$parents), 'progeny', 'parent') #labe parents and generation
+
+parents <- parents[order(parents$generation), ] #order
+parents$parents <- gsub('_parent$', '', parents$parents) #remove parent value
+
+mother <- read.csv(file = './data/Original_Data/NAM_Mothers.csv', header = TRUE, stringsAsFactors = FALSE)
+
+progeny <- merge(parents, mother, by.x = 'parents', by.y = 'NAM', all.x = TRUE) #add progeny
+
+#filter to subsets
+cervus <- hap[hap$MAF > 0.05  & hap$present > 0.99 & hap$het < 18, ] #get marker greater than 0.05, nearly completely present (due to genotyping depth and number), and less than 18 hets out of 59 individual
+
+hist(cervus$MAF)
+hist(cervus$present)
+hist(cervus$het)
+hist(cervus$percentHET)
+
+geno <- hap_to_G(cervus, 17) #make a -1, 0, 1 marker matrix
+geno[,18:ncol(geno)] <- geno[, 18:ncol(geno)] + 1 #add 1 to everything to make a 0,1,2 matrix
+
+rownames(geno) <- geno$`rs.` #make rownames
+geno <- geno[, 18:ncol(geno)] #remove columns that are not needed
+geno <- as.data.frame(t(geno)) #transpose geno
+geno$plant_id <- rownames(geno) #give plant_id a unique column to merge with plant)_id
+
+#remvoe parent from plant_id
+geno$plant_id <- sub('_parent', '', geno$plant_id)
+
+#add phenotype information to geno
+geno <- merge(progeny, geno, by.x = 'parents', by = 'plant_id')
+
+#make potential offspring key
+male_candidates <- geno[geno$generation == 'parent', ] #get all candidate fathers
+
+offspring <- geno[geno$generation == 'progeny', ] #get all offspring
+
+progeny <- NULL #set up data frame to store results
+
+for(i in 1:nrow(offspring)){ #loop over all progeny developing candidate list for all fathers
+  mother <- offspring$mother[i] #extract mother
+  father <- male_candidates$parents#get all potential father
+  father <- t(as.data.frame(father, stringsAsFactors = FALSE)) #format data
+  
+  progeny_row <- cbind.data.frame(offspring$parents[i], mother, father) #format data
+  progeny <- rbind.fill(progeny, progeny_row) #write to progeny
+
+  }
+
+
+#write files for Cervus
+#write.table(progeny, file = './data/Intermediate_File/Cervus/NAM_Offspring.txt', sep = '\t', quote = FALSE, row.names = FALSE, col.names = FALSE) #write out progeny
+
+#write.table(geno, file = './data/Intermediate_File/Cervus/NAM_Marker.txt', sep = '\t', quote = FALSE, row.names = FALSE, col.names = FALSE) #write out marker data
+
+#clean up
+rm( cervus, father, geno, hap, male_candidates, offspring, parents, progeny, progeny_row, i, mother)
+```
+
+#Format for Cervus
+
+Need to make a file that details the genotype encoding.
+
+```{r cervus_genotype_encoding, eval=FALSE}
+header <- c('locus', 'genotype', 'allele1', 'allele2') #make simple header and rows for encoding
+row1 <- c(1, 0, 'A', 'A') #encoding of locus 1, genotype '0', as 'A', 'A'
+row2 <- c(1, 1, 'A', 'B') #encoding of locus 1, genotype '1', as 'A', 'B'
+row3 <- c(1, 2, 'B', 'B') #encoding of locus 1, genotype '2', as 'B', 'B'
+
+encoding <- rbind.data.frame(header, row1, row2, row3) #make a dataframe with encoding
+
+colnames(encoding) <- NULL #set rownames to NULL
+
+#write out file
+#write.csv(encoding, './data/Intermediate_File/Cervus/Genoptype_Encoding.csv', row.names = FALSE,  quote = FALSE) #write out file to use by cervus
+
+#clean up
+rm(header, row1, row2, row3, encoding)
+```
+
+# To run Cervus
+Cervus version 3.0.7 was used for parentage analysis.  To complete a parentage analysis, the following steps were completed at the user window (on a windows machine).
+
+1.  Complete an allele frequency analysis.  Analysis > Allele Frequency Analysis ...
+  a.  In the popup box, select the input file [NAM_Marker.txt](./data/Intermediate_File/Cervus/NAM_Marker.txt).  Fill out header row (none), ID column, first allele column, and number of loci.  (1, 4, 2303).
+  b.  **Important** select options and choose one one-column genotype encoding and used the Genotype_Encoding.csv. Click Okay.
+  c.  Choose output file name by choosing save-as and NAM_ALF.txt. 
+  d. Output options kept at default, HWE test, Yates correction and Bonferroni, and estimate null allele frequency.
+  e.  Run by choosing OK
+  
+2.  Complete a Simulation of Parentatge Analysis for Parternity. Analysis > Simulation of Parentage Analysis > Paternity
+  a.  Choose the allele frequency file from step 1.  NAM_ALF.alf
+  b.  Set candidate father to 48 (or known number).  Change proportioned sampled to 95% \[0.95\](assume that we have sampled nearly all potential father).  Change loci typed to 95% \[0.95\]as we few loci with low data.  Using minimum typed loci of 300, and simulate 250,000 progeny.
+  c.  In options set test for self-fertilization.
+  d.  Set summary output file (NAM_SIM.txt) and run.
+
+Steps 1 and 2 make the files for parentage analysis (permutation files for assigning accuracy)
+
+3.  Run parentage anaylsis.  Analysis > Parentage Analysis > Paternity ...
+  a.  Load offspring file, [NAM_Offspring.txt](./data/Intermediate_File/Cervus/NAM_Offspring.txt),  Does not have header row, offsrping_id column 1, known parent column 2, candidate parent starts at column 3.
+  b.  Step 2 candidate parent data skip choose next becuase information is entered in offspring file.
+  c.  Choose genotype file and encoding file.  Set ID columns and genotype information.  Add in allele frequency file (alf file).  Choose next
+  d.  Choose simulation file. NAM_SIM.sim
+  e.  Set an output file. NAM_PAT.txt
+  f.  Keep default as The most-likely parent
+  g.  OK to run
+  
+Once the analysis is finsished can save entire Cervus file as [NAM_Paternity_Analysis.crv](./data/Intermediate_File/Cervus/NAM_Paternity_Analysis.crv).
+
+
+# Get Paternity Assignment
+
+Load the paternity assignment.  
+
+```{r add_paternity, eval=FALSE}
+cervus <- read.csv(file = './data/Intermediate_File/Cervus/NAM_PAT.csv', stringsAsFactors = FALSE, header = TRUE) #load file from Cervus
+
+cervus_names <- c('plant_id', 'n_loci', 'female_plant_id', 'n_loci_female', 'n_loci_compared_female', 'n_loci_mismatch_female', 'LOD_female', 'candidate_male_plant_id', 'n_loci_cmale', 'n_loci_compared_cmale', 'n_loci_mismatch_cmale', 'LOD_cmale', 'Delta_cmale', 'confidence_cmale', 'trio_loci_compared', 'trio_mismatch', 'LOD_trio', 'Delta_trio', 'confidence_trio') #rename columns
+
+cervus <- cbind(rownames(cervus), cervus[, 1:18]) #rearrange for cervus
+rownames(cervus) <- NULL #set rows to missing
+
+colnames(cervus) <- cervus_names #add column names
+
+cervus <- cervus[, c(1, 3, 8)] #only get assignments
+
+#check original assignment for mothers
+nam <- read.csv(file = './data/Original_Data/NAM_Mothers.csv', header = TRUE, stringsAsFactors = TRUE)
+
+cervus_out <- merge(cervus, nam, by.x = c('plant_id', 'female_plant_id'), by.y = c('NAM', 'mother')) #merge on mother and NAM, all rows remain
+
+#write.csv(cervus_out, file = './data/Intermediate_File/NAM_Founder_Assigned_Parent.csv', row.names = FALSE, quote = FALSE) #write file out
+
+#clean up
+rm(cervus, cervus_out, nam, cervus_names)
+```
+
+Final excel file updated using [NAM_Founder_Assigned_Parent.csv](./data/Intermediate_File/NAM_Founder_Assigned_Parent.csv) and saved as [C2_Final_Assignemnt.xlsx](./data/Final_File/C2_Final_Assignemnt.xlsx).
+
+# NAM Genomic Relationship
+
+```{r nam_genomic_relationship, eval = TRUE}
+require(lattice)
+require(plyr)
+require(rrBLUP)
+
+hap <- read.delim(file = './data/Intermediate_File/NAM_Founder_Parents.txt', stringsAsFactors = FALSE, header= TRUE)
+
+info <- hap[, 1:18] #get columns of information
+
+parents <- hap[, grepl('_parent$', colnames(hap))] #get parents
+colnames(parents) <- sub('_parent', '', colnames(parents)) #remove parent from names
+
+hap <- cbind(info[, 1:11], parents) #make new hap
+
+geno <- hap_to_G(hap, y = 11)
+
+rownames(geno) <- geno$rs.
+
+geno <- t(geno[, 12:ncol(geno)]) #make matrix for rrBLUP
+
+mat <- A.mat(geno)
+
+mat <- round(mat, 2) #round to two decimals
+
+#part from https://stackoverflow.com/questions/6569666/showing-data-values-on-levelplot-in-r
+#pdf(file = './data/Figures/NAM_Founder_Genomic_Relationship_Matrix.pdf', height = 9, width = 9)
+levelplot(mat, scales = list(x = list(cex = 1, rot = 90), y = list(cex = 1)), xlab = 'Female ID', ylab = 'Male ID', panel=function(...) {
+                       arg <- list(...)
+                       panel.levelplot(...)
+                       panel.text(arg$x, arg$y, round(arg$z,2))})
+#dev.off()
+
+#print relationship
+mean(diag(mat)) #theoretically 1
+mean(mat[lower.tri(mat)]) #theroetically 0
+
+#clean up
+rm(hap, info, parents, geno, mat)
+
+```
+
+# Make Pedigrees
+
+[Completed_Paternity_Pedigree.csv](./data/Intermediate_File/Completed_Paternity_Pedigree.csv) was made manually by updating known pedigree records with Cervus output.
+
+```{r pedigrees}
+require(plyr)
+require(devtools) #load packages
+
+germ <- readRDS('./data/RObjects/Germ_Query.RDS') #load iwg data
+germ <- germ[,1:4]
+
+umn <- read.csv(file = './data/Intermediate_File/Completed_Paternity_Pedigree.csv', header = TRUE, stringsAsFactors = FALSE) #load NAM paternity assigned
+
+umn <- umn[!duplicated(umn),] #remvoe duplicated
+
+umn$germplasm_id <- gsub('P01$|P02$|P20$', '', umn$germplasm_id) #rename P01 and P02 to nothing to match other records
+
+#give record_id
+umn$record_id <- NA
+
+germ <- rbind(germ, umn) #join together
+
+nam_parents <- umn[1:11, 1] #get parents
+
+#get visPedigree package and load
+
+#https://www.r-bloggers.com/drawing-an-animal-pedigree-using-the-vispedigree-package/
+suppressPackageStartupMessages(is_installed <- require(visPedigree))
+if (!is_installed) {
+  install_github("luansheng/visPedigree")  
+  suppressPackageStartupMessages(require(visPedigree))
+}
+
+founder_germ <- NULL #set up output dataframe
+
+#for each of the 11 plants run the prune pedigree query
+for(i in 1:length(nam_parents)){ #loop over each founder to get full pedigree
+  founder <- nam_parents[i] #get founder_id
+  founder_i <- prune_pedigree(x = founder, y = germ) #make pedigree
+  founder_i <- founder_i[, 2:4] #only get columns for pedigree
+  founder_i$founder <- founder #add germplasm_id
+  
+  #make graphs
+  y <- tidyped(founder_i)
+  #pdf(file = paste('./data/Figures/', founder, '.pdf', sep = ''), height = 6, width = 6)
+  visped(y)
+  title(founder)
+  #dev.off()
+  #write out
+  founder_germ <- rbind(founder_germ, founder_i)
+  }
+
+#make pedigree trees
+founder <- tidyped(founder_germ)
+#pdf(file = './data/Figures/Supplementary_Figure_2.pdf', height = 6, width = 12)
+visped(founder, cex = 0.75 )
+title('Relationship Between Founder Lines')
+#dev.off()
+
+#write.csv
+#write.csv(founder_germ, file = './data/Intermediate_File/Founder_Pedigree_Info.csv', row.names = FALSE, quote = FALSE)
+
+#clean up
+rm(founder, founder_germ, founder_i, germ, y, i, is_installed, umn, nam_parents)
+```
+
+
+# Session Information
+
+```{r sessionInformation}
+sessionInfo()
+```
