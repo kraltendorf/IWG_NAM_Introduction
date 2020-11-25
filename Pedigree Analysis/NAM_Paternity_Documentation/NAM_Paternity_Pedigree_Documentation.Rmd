@@ -392,7 +392,7 @@ hap <- read.delim(file = './data/Intermediate_File/NAM_Founder_Parents.txt', str
 info <- hap[, 1:18] #get columns of information
 
 parents <- hap[, grepl('_parent$', colnames(hap))] #get parents
-colnames(parents) <- sub('_parent', '', colnames(parents)) #remove parent from names
+colnames(parents) <- sub('P01_parent|P02_parent|P20_parent', '', colnames(parents)) #remove parent from names
 
 hap <- cbind(info[, 1:11], parents) #make new hap
 
@@ -408,10 +408,13 @@ mat <- round(mat, 2) #round to two decimals
 
 #part from https://stackoverflow.com/questions/6569666/showing-data-values-on-levelplot-in-r
 #pdf(file = './data/Figures/NAM_Founder_Genomic_Relationship_Matrix.pdf', height = 9, width = 9)
-levelplot(mat, scales = list(x = list(cex = 1, rot = 90), y = list(cex = 1)), xlab = 'Female ID', ylab = 'Male ID', panel=function(...) {
+#tiff(file = './data/Figures/NAM_Founder_Genomic_Relationship_Matrix.tiff', height = 9, width = 9, units = 'in', res = 300 )
+
+levelplot(t(mat[c(nrow(mat):1) , ]), scales = list(x = list(cex = 1, rot = 90), y = list(cex = 1)), xlab = 'Parent ID', ylab = 'Parent ID', at = c(seq(-0.25, 0.25, by = 0.05), 1.2),  panel=function(...){
                        arg <- list(...)
                        panel.levelplot(...)
-                       panel.text(arg$x, arg$y, round(arg$z,2))})
+                       panel.text(arg$x, arg$y, round(arg$z,2))}
+     )
 #dev.off()
 
 #print relationship
