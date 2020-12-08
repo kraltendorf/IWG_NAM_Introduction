@@ -1,0 +1,7 @@
+lg	map	group	left	center	right	locus	max_lod	famID	r2	mu	alpha	gamma	trait	env	year
+9	DP	9_DP	82.059	88.136	94.061	NA	8.14	combined	NA	NA	NA	NA	emergence_percent	tli	2018
+13	CP	13_CP	101.914	122.71	133.024	NA	9.69	combined	NA	NA	NA	NA	emergence_percent	tli	2018
+13	CP	13_CP	100.914	112.019	135.685	CP_Chr13_104225517	3.68	WGN26	12.6	1.00487	0.0593799999999999	NA	emergence_percent	tli	2018
+13	CP	13_CP	21.24	79.133	135.685	NA	3.84	WGN55	24.4	0.911916	0.108534	NA	emergence_percent	tli	2018
+14	DP	14_DP	145.456	166.755	166.755	DP_Chr14_2538957	3.62	WGN36	13.5	1.087305	NA	0.060935	emergence_percent	tli	2018
+21	DP	21_DP	52.39	61.39	71.454	DP_Chr21_90120652	3.44	WGN36	12.9	1.0775	NA	-0.0588099999999999	emergence_percent	tli	2018

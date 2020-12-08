@@ -1,0 +1,6 @@
+lg	map	group	left	center	right	locus	max_lod	famID	r2	mu	alpha	gamma	trait	env	year
+5	DP	5_DP	23.579	49.444	140.248	NA	7.1	WGN26	65.9	7.1605	NA	-0.6536	feekes_coded	stp	2018
+6	DP	6_DP	0	24.907	29.88	NA	14.46	combined	NA	NA	NA	NA	feekes_coded	stp	2018
+6	DP	6_DP	0	24.907	33.56	NA	5.44	WGN15	19.4	7.47874	NA	0.40577	feekes_coded	stp	2018
+6	DP	6_DP	0	22.037	31.88	NA	4	WGN55	14.7	7.99827	NA	0.27819	feekes_coded	stp	2018
+12	CP	12_CP	50.462	56.327	60.915	CP_Chr12_203098219	14.05	combined	NA	NA	NA	NA	feekes_coded	stp	2018
