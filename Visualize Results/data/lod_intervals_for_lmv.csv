@@ -1,24 +1,24 @@
 lg,left,right,famID,trait,env,year,marker_name,chr,env_year
-5,48,118.8,combined,feekes_coded,TLI,2017,ANT 17,LG05,TLI2017
-5,80.1,120.8,combined,feekes_coded,STP,2017,ANT 17,LG05,STP2017
-6,0,31.9,combined,emergence_percent,STP,2017,EMP 18 - ANT 17 & 18,LG06,STP2017
-6,78.9,104.8,combined,emergence_percent,TLI,2017,EMP 17,LG06,TLI2017
-8,83.4,93.8,combined,emergence_percent,STP,2018,EMP 18,LG08,STP2018
-9,39.4,58.1,combined,emergence_percent,TLI,2017,EMP 17 & 18 - ANT 18,LG09,TLI2017
-9,120.8,140.2,combined,emergence_percent,STP,2017,EMP 17,LG09,STP2017
-11,54.9,58.9,combined,emergence_percent,STP,2018,EMP 18,LG11,STP2018
-11,85.6,96.6,combined,emergence_percent,STP,2018,EMP 18,LG11,STP2018
-12,34.9,52.5,combined,emergence_percent,TLI,2017,EMP 17,LG12,TLI2017
-12,50.5,60.9,combined,feekes_coded,STP,2018,ANT 18,LG12,STP2018
-12,62.2,80.8,combined,emergence_percent,STP,2017,EMP 17 & 18,LG12,STP2017
-13,38.2,69.4,combined,emergence_percent,TLI,2018,EMP 18,LG13,TLI2018
-13,134.9,165.3,combined,emergence_percent,TLI,2017,EMP 17,LG13,TLI2017
-14,121.5,151.1,combined,emergence_percent,STP,2018,EMP 18,LG14,STP2018
-15,28.4,51.5,combined,emergence_percent,STP,2017,EMP 17,LG15,STP2017
-15,34.7,42.1,combined,feekes_coded,TLI,2018,ANT 18,LG15,TLI2018
-17,57.9,75.2,combined,emergence_percent,STP,2018,EMP 18,LG17,STP2018
-17,86.7,135.7,combined,emergence_percent,STP,2018,EMP 18,LG17,STP2018
-17,105.5,135.7,combined,emergence_percent,TLI,2017,EMP 17 & ANT 17,LG17,TLI2017
-18,69.6,79.2,combined,emergence_percent,STP,2017,EMP 17,LG18,STP2017
-20,107,116.9,combined,emergence_percent,STP,2018,EMP 18,LG20,STP2018
-21,45.5,70.3,combined,emergence_percent,STP,2018,EMP 17 & 18,LG21,STP2018
+5,48,118.8,combined,feekes_coded,TLI,2017,ANT_17,LG05,TLI2017
+5,80.1,120.8,combined,feekes_coded,STP,2017,ANT_17,LG05,STP2017
+6,0,31.9,combined,emergence_percent,STP,2017,"EMP_18, ANT_17, ANT_18",LG06,STP2017
+6,78.9,104.8,combined,emergence_percent,TLI,2017,EMP_17,LG06,TLI2017
+8,83.4,93.8,combined,emergence_percent,STP,2018,EMP_18,LG08,STP2018
+9,39.4,58.1,combined,emergence_percent,TLI,2017,"EMP_17, EMP_18, ANT_18",LG09,TLI2017
+9,120.8,140.2,combined,emergence_percent,STP,2017,EMP_17,LG09,STP2017
+11,54.9,58.9,combined,emergence_percent,STP,2018,EMP_18,LG11,STP2018
+11,85.6,96.6,combined,emergence_percent,STP,2018,EMP_18,LG11,STP2018
+12,34.9,52.5,combined,emergence_percent,TLI,2017,EMP_17,LG12,TLI2017
+12,50.5,60.9,combined,feekes_coded,STP,2018,ANT_18,LG12,STP2018
+12,62.2,80.8,combined,emergence_percent,STP,2017,"EMP_17, EMP_18",LG12,STP2017
+13,38.2,69.4,combined,emergence_percent,TLI,2018,EMP_18,LG13,TLI2018
+13,134.9,165.3,combined,emergence_percent,TLI,2017,EMP_17,LG13,TLI2017
+14,121.5,151.1,combined,emergence_percent,STP,2018,EMP_18,LG14,STP2018
+15,28.4,51.5,combined,emergence_percent,STP,2017,EMP_17,LG15,STP2017
+15,34.7,42.1,combined,feekes_coded,TLI,2018,ANT_18,LG15,TLI2018
+17,57.9,75.2,combined,emergence_percent,STP,2018,EMP_18,LG17,STP2018
+17,86.7,135.7,combined,emergence_percent,STP,2018,EMP_18,LG17,STP2018
+17,105.5,135.7,combined,emergence_percent,TLI,2017,"EMP_17, ANT_17",LG17,TLI2017
+18,69.6,79.2,combined,emergence_percent,STP,2017,EMP_17,LG18,STP2017
+20,107,116.9,combined,emergence_percent,STP,2018,EMP_18,LG20,STP2018
+21,45.5,70.3,combined,emergence_percent,STP,2018,"EMP_17, EMP_18",LG21,STP2018

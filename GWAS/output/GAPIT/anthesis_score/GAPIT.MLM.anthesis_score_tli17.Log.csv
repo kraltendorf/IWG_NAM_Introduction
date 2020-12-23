@@ -2,11 +2,11 @@ Model,Value
 Trait,c("1158", "2")
 group.by ,20
 Trait name ,MLM.anthesis_score_tli17
-Kinship,1168:1169
+Kinship,1158:1159
 Z Matrix,c(1159, 1159)
 Covariate,c(1158, 2)
 SNP.P3D,TRUE
 Clustering algorithms,average
 Group kinship,Mean
-group.from ,1168
-group.to ,1168
+group.from ,1158
+group.to ,1158

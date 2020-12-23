@@ -7,8 +7,6 @@
 library("sommer")
 library("vcfR")
 library("dplyr")
-install.packages("readr")
-library("readr")
 library("tibble")
 library("multtest")
 library("gplots")
@@ -80,89 +78,111 @@ for (j in 1:length(files)) {
 
 
 
-##### Step 2: Run GAPIT Using Imputed SNPs in  HapMap Format #####
+##### Step 2: Prepare SNP Data in Numeric Format #####
+# prepare imputed genotype file in numeric format
+vcf <- read.vcfR(paste(dir, "Variant Filtering and Imputation/output/NAM_GATK_imputed.vcf", sep = ""), convertNA = TRUE)
 
-# load in hapmap file
-myG <- read_tsv(paste(dir, "Variant Filtering and Imputation/output/NAM_GATK_imputed.hmp.txt", sep = ""))
+# extract genotypes and id_frame
+genotypes <- extract.gt(vcf, convertNA = FALSE)
+id_frame <- as.data.frame(vcf@fix[,1:5]) # extract a dataframe with SNP ids -- this will come in handy later
+id_frame <- id_frame %>% mutate(ID = paste(CHROM, "_", POS, sep = ""))
 
-# update sample names
+# update sample names from their ID in variant calling (e.g. flowcell, lane, barcode)
+# to their sample names
 # read in key
 key <- read.table(paste(dir, "Variant Calling/data/new_key.txt", sep = ""), header = T) %>% 
   mutate(GATK_Sample = paste(Flowcell, "_", Lane, "_", Barcode_ID, "_", sep = "")) %>%
   dplyr::select(GATK_Sample, Sample)
 
-# remove extra cols
-myG1 <- myG[,-1:-11]
-myG1[1:10, 1:10]
+# prepare genotypes
+genotypes1 <- t(genotypes) # transpose
+genotypes2 <- as.data.frame(genotypes1) %>% rownames_to_column(var = "GATK_Sample")
 
-# transpose
-myG2 <- t(myG1) 
-myG3 <- as.data.frame(myG2) %>% rownames_to_column(var = "GATK_Sample")
-myG3[1:10, 1:10]
-
-myG4 <- left_join(myG3, key, by = "GATK_Sample") %>%
+genotypes3 <- left_join(genotypes2, key, by = "GATK_Sample") %>%
   column_to_rownames("Sample") %>%
   dplyr::select(-GATK_Sample) %>%
   t()
 
-myG4[1:10, 1:10]
+# change all | to / to remove phasing information, if any
+genotypes3[genotypes3=="0|1"] <- "0/1"
+genotypes3[genotypes3=="1|0"] <- "0/1"
+genotypes3[genotypes3=="1|1"] <- "1/1"
+genotypes3[genotypes3=="0|0"] <- "0/0"
 
+genotypes_numeric <- genotypes3
+
+for (i in 1:nrow(genotypes3)) {
+  gt <- unlist(genotypes3[i,])
+  gt1 <- gt
+  gt1[gt == "0/0"] <- 0
+  gt1[gt == "0/1"] <- 1
+  gt1[gt == "1/1"] <- 2
+  gt1[gt == "./."] <- NA
+  genotypes_numeric[i,] <- gt1 
+}
+
+genotypes_numeric <- as.data.frame(t(genotypes_numeric)) %>% rownames_to_column(var = "taxa")
+
+# extract snp information as a separate file
+mdp_SNP_information <- id_frame %>% 
+  dplyr::select(ID, CHROM, POS) %>%
+  dplyr::rename(Name = ID, 
+         Chromosome = CHROM, 
+         Position = POS) %>%
+  mutate(Chromosome = as.numeric(substr(Chromosome, 4, 5)))
+
+# write out result
+write.table(genotypes_numeric, paste(dir, folder, "/output/GATK_NAM_snp_matrix_imputed.table.txt", sep = ""), col.names = T, row.names = F, sep = "\t", quote = F)
+write.table(mdp_SNP_information, paste(dir, folder, "/output/mdp_SNP_information.txt", sep = ""), col.names = T, row.names = F, sep = "\t", quote = F)
+
+# read it back in 
+myGD <- read.table(paste(dir, folder, "/output/GATK_NAM_snp_matrix_imputed.table.txt", sep = ""), head = T) 
+myGM <- read.table(paste(dir, folder, "/output/mdp_SNP_information.txt", sep = ""), head = T) 
 
 
 #### Step 3: Run GAPIT ####
 # edit here only
-trait <- emergence_percent
-trait_name <- c("emergence_percent")
+trait <- anthesis_score
+trait_name <- c("anthesis_score")
 
 # set directory
 dir.create(paste(dir, folder, "/output/GAPIT/", trait_name, sep = ""))
 setwd(paste(dir, folder, "/output/GAPIT/", trait_name, sep = ""))
 
 # run
+i = 4
 for (i in 1:length(trait)) {
   phenotype <- trait[[i]]
   
   # choose only samples that are in common
   P <- phenotype$longID
-  G <- colnames(myG4)
+  G <- myGD$taxa
   common <- Reduce(intersect, list(G, P))
   
   # filter phenotype data
   P2 <- filter(phenotype, longID %in% common) %>% droplevels() %>% arrange(longID)
   
-  # filter genotype data and put in order
-  myG5 <- myG4[, colnames(myG4) %in% common]
-  myG6 <- myG5[,order(colnames(myG5))] 
-  
-  # bind back unnecessary cols from hapmap
-  myG7 <- cbind(myG[,1:11], myG6)
-  
-  # make sure column names align
-  print(summary(colnames(myG7[,-1:-11]) == P2$longID))
-  
-  # get rid of hashes in column names
-  colnames(myG7)[1] <- "rs"
-  colnames(myG7)[6] <- "assembly"
+  myGD2 <- myGD %>% 
+    filter(taxa %in% common) %>%
+    arrange(taxa)
+
+  # make sure sample names align
+  print(summary(myGD2$taxa == P2$longID))
   
   # rename phenotype header
   colnames(P2)[1] <- "Taxa"
   
   # rename phenotype to correct trait
-  colnames(P2)[2] <- paste(trait_name, env_order[i], sep = "_")
+  colnames(P2)[2] <- paste(trait_name, env[i], sep = "_")
   
-  # make chromosome numeric
-  myG7$chrom <- as.numeric(myG7$chrom)
-  
-  # write it out, and read it back in with header = F
-  write.table(myG7, paste(dir, folder, "/output/myG7.hmp.txt", sep = ""), quote = F, row.names = F, sep = "\t") 
-  myG8 <- read.table(paste(dir, folder, "/output/myG7.hmp.txt", sep = ""), head = F)
-
   # gapit command
   myGAPIT <- GAPIT(
     Y=P2,
-    G=myG8,
-    SNP.MAF=0.005,
+    GD=myGD2,
+    GM=myGM,
+    SNP.MAF=0.005, # inserting a MAF here since imputation introduced a few low freq alleles post vcftools filtering
     PCA.total = 0)
 }
+ 
 
 
